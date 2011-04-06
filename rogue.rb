@@ -105,9 +105,12 @@ class Level
 
 	def put_item(pos, i)
 		t = get_tile(pos)
+
 		t_1 = t.dup
-		t_1.contents << i
-		put_tile(pos, t)
+		t_1.contents = [i] + t_1.contents
+		# t_1 = Tile.new(:tile_type => t.tile_type, :contents => [i] + t.contents, :hidden => t.hidden, :closed => t.closed, :direction => t.direction)
+
+		put_tile(pos, t_1)
 	end
 
 	def to_s
@@ -118,7 +121,7 @@ end
 class Game
 	attr_accessor :levels, :player_level, :player_pos
 
-	def makeStairs
+	def self.makeStairs
 		upstairPos = [rand(COLS), rand(ROWS)]
 
 		downstairPos = upstairPos
@@ -130,7 +133,15 @@ class Game
 		[upstairPos, downstairPos]
 	end
 
-	def initialize
+	def initialize(levels = [Level.new] * LEVELS, player_level = 0, player_pos = [0, 0])
+		@levels = levels
+		@player_level = player_level
+		@player_pos = player_pos
+	end
+
+	def self.gen
+		g = Game.new
+
 		lev = Level.new
 
 		upstairPos, downstairPos = makeStairs
@@ -139,9 +150,11 @@ class Game
 
 		lev_2 = lev_1.put_tile(downstairPos, Tile.new(:tile_type => :stair, :direction => :down))
 
-		@levels = [lev_2] * LEVELS
-		@player_level = 0
-		@player_pos = upstairPos
+		g.levels = [lev_2] * LEVELS
+		g.player_level = 0
+		g.player_pos = upstairPos
+
+		g
 	end
 
 	def to_s
@@ -150,33 +163,79 @@ class Game
 		lev_1 = lev.put_item(@player_pos, Player.new)
 		lev_1.to_s
 	end
+
+	def draw
+		s = to_s.split "\n"
+		0.upto(ROWS).each { |y|
+			setpos(y, 0)
+			addstr(s[y])
+		}
+	end
+
+	def loop
+		draw
+
+		g = case getch
+		when ?Q, ?q: return
+		when Key::UP: move(:up)
+		when Key::DOWN: move(:down)
+		when Key::LEFT: move(:left)
+		when Key::RIGHT: move(:right)
+		else
+			self
+		end
+
+		g.loop
+	end
+
+	def move(direction)
+		x, y = @player_pos
+
+		pos_1 = case direction
+			when :up
+				if y == 0 then
+					[x, y]
+				else
+					[x, y - 1]
+				end
+			when :down
+				if y == ROWS - 1 then
+					[x, y]
+				else
+					[x, y + 1]
+				end
+			when :left
+				if x == 0 then
+					[x, y]
+				else
+					[x - 1, y]
+				end
+			when :right
+				if x == COLS - 1 then
+					[x, y]
+				else
+					[x + 1, y]
+				end
+		end
+
+		g_2 = dup
+		g_2.player_pos = pos_1
+		g_2
+	end
 end
 
 def main
-	puts Game.new
+	begin
+		init_screen
+		crmode
+		noecho
+		timeout = 0
+		stdscr.keypad(true)
 
-	# begin
-	# 	init_screen
-	# 	crmode
-	# 	noecho
-	# 	timeout = 0
-	# 
-	# 	loop do
-	# 		case getch
-	# 		when ?Q, ?q: break
-	# 		# when Key::UP: paddle.up 
-	# 		# when Key::DOWN: paddle.down 
-	# 		# when Key::RIGHT: paddle.right
-	# 		# when Key::LEFT: paddle.left 
-	# 		else 
-	# 			#beep
-	# 		end
-	# 
-	# 		# ...
-	# 	end
-	# ensure
-	# 	close_screen
-	# end
+		Game.gen.loop
+	ensure
+		close_screen
+	end
 end
 
 if __FILE__==$0
